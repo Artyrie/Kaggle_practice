@@ -25,8 +25,8 @@ finally, rank 2 just use tfhub.<br>
 * <https://www.kaggle.com/c/bms-molecular-translation/overview><br>
 * code Skeleton <https://www.kaggle.com/yasufuminakama/inchi-resnet-lstm-with-attention-starter><br>
 
-I studied Encoder-Decoder, Auto-Encoder System through this living compoetition.
-I focused on studying connecting models.
-It was very difficult subject, and it took a lot of time and resources.
-But I think I got a lot out of it.
-I want to study more and try it later.
+I studied Encoder-Decoder, Auto-Encoder System through this living compoetition.<br>
+I focused on studying connecting models.<br>
+It was very difficult subject, and it took a lot of time and resources.<br>
+But I think I got a lot out of it.<br>
+I want to study more and try it later.<br>
