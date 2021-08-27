@@ -1,0 +1,110 @@
+<< Encoder >>
+
+Image ->
+ResNet Feature Extract (Global Pooling 까지 미진행)
+
+
+<< Attention >>
+
+encoder_att operation - Linear(encoder_dim, attention_dim)
+ => encoder_out : (batch_size, num_pixels, encoder_dim)
+ => encoder att : (batch_size, num_pixels, attention_dim)
+
+decoder_att operation - Linear(decoder_dim, attention_dim)
+ => decoder_hidden : (batch_size, decoder_dim)
+ => decoder att : (batch_size, attention_dim)
+
+full_att operation - Linear(attention_dim, 1)
+ => 1. (batch_size, num_pixels, attention_dim) + (batch_size, 1, attention_dim)
+ => 2. ReLU(1.) : 동일 shape
+ => 3. squeeze(2) : (batch_size, num_pixels)
+
+alpha : 이후 softmax로 full_att operation 결과 계산
+ => alpha : (batch_size, num_pixels)
+
+attention_weighted_encoding - (encoder_out * alpha.unsqueeze(2)).sum(dim = 1)
+ => 1. (batch_size, num_pixels, encoder_dim) * (batch_size, num_pixels, 1)
+ => 2. (batch_size, num_pixels, encoder_dim).sum(dim = 1)
+ => (batch_size, encoder_dim)
+
+최종 리턴 shape
+attention_weighted_encoding (batch_size, encoder_dim), alpha (batch_size, num_pixels)
+
+
+<< DecoderWithAttention >>
+
+embedding : 입력 정수에 대해 밀직 벡터 (dense vector)로 맵핑하고 가중치 학습과 같은 방식으로 훈련
+훈련 과정에서 단어는 모델이 풀고자하는 작업에 맞는 값으로 업데이트 되며,
+이 밀집 벡터를 임베딩 벡터라 부름.
+ ㄴ 정수 -> 임베딩 벡터 맵핑 : 특정 단어와 맵핑되는 정수를 인덱스로 가지는 테이블로부터
+	임베딩 벡터 값을 가져오는 룩업 테이블
+(테이블은 집합의 크기 만큼의 행을 가지므로 모든 단어는 고유한 임베딩 벡터를 가짐)
+
+==
+
+embedding - (vocab_size, embed_size) 만큼의 룩업 테이블 생성
+caption_lengths, sort_ind - batch 내에서 squence 길이가 긴 순서대로 정렬하고 값과 index tensor 반환
+ ㄴ 왜 정렬하나?
+embeddings - (batch_size, max_caption_length, embed_dim)으로 embedding
+h, c - (batch_size, decoder_dim)으로 hidden state 초기화
+decode_lengths - start token을 무시하기 위해 length 1을 차감하고 list화
+
+#prediction
+batch 내에 인덱스를 1개씩 넘어가면서 prediction 수행
+
+==
+
+init_weights - weights 초기화
+ => embedding.weight.data.uniform_(-0.1, 0.1) : embedding weight를 (-0.1, 0.1) 범위에서 uniform distribution으로 초기화
+ => fc.bias.data.fill_(0) : fc 레이어의 bias 값을 모두 0으로 초기화
+ ㄴ Linear.bias는 learnable bias of the module of shape
+ => fc.weight.data.uniform_(-0.1, 0.1) : 동일하게 weight 초기화
+
+torch.nn.Linear()의 default weight 초기화 방식은 중간2_11
+
+==
+
+load_pretrained_embeddings - nn.Parameter 시험 결과 tensor 값과 같은 값을 돌려줌
+ ㄴ 내부의 값을 재귀적으로 검색하여 출력해주는 함수인 듯
+
+==
+
+fine_tune_embeddings - embedding parameter가 학습되도록 변경
+
+==
+
+init_hidden_state - hidden_state 초기화
+ => encoder_out : (batch_size, num_pixels, encoder_dim) 
+ => mean_encoder_out : (batch_size, encoder_dim)
+
+init_h : Linear(encoder_dim, decoder_dim)
+ => h : (batch_size, decoder_dim)
+
+init_c : Linear(encoder_dim, decoder_dim)
+ => c : (batch_size, decoder_dim)
+
+==
+
+predict - prediction
+ => start_tokens : batch_size 만큼 start token값을 넣은 tensor 초기화
+ => embeddings : start_tockens embedding
+ => alphas가 없는 것 제외하고 forward와 동일한 구성
+ => 마지막에 argmax에 end tocken이 걸리면 정지
+
+
+<< train_fn >>
+
+torch.nn.utils.rnn.pack_padded_sequence - https://simonjisu.github.io/nlp/2018/07/05/packedsequence.html
+ ㄴ 병렬 연산처리에 유리하게 정리해줌
+
+torch.nn.utils.clip_grad_norm_ - 신경망 파라미터 theta의 norm을 구하고 크기를 제한함
+ ㄴ gradient vector의 방향은 유지하되, 학습이 망가지지 않을 정도로 크기를 줄이는 방법
+
+DataLoader의 pin_memory - 데이터 로더가 Tensor를 CUDA 고정 메모리에 올림
+
+Opimizer의 weight_decay - 가중치 값이 커질 수록 overfitting이 발생할 가능성이 높아지므로
+	특정 값을 손실함수에 더해주는 것이 정형화 중 가중치 감소 (Weight Decay) 이다.
+	이 특정 값을 결정하는 것이 L1 정형화와 L2 정형화이다.
+
+Optimizer의 amsgrad - 논문 참조하라고 함
+ ㄴ On the Convergence of Adam and Beyond
